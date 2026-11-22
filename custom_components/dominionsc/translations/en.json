@@ -9,7 +9,8 @@
             "invalid_auth": "Invalid authentication",
             "invalid_tfa_code": "The security code is incorrect. Please try again.",
             "unknown": "Unexpected error",
-            "invalid_backfill_selection": "It is required to backfill consumption data if you want to backfill cost data. Please try again."
+            "invalid_backfill_selection": "It is required to backfill consumption data if you want to backfill cost data. Please try again.",
+            "account_unavailable": "That account is no longer available. Please choose again."
         },
         "step": {
             "backfill_options": {
@@ -85,6 +86,16 @@
                     "username": "The username for your utility account"
                 },
                 "title": "Enter credentials"
+            },
+            "select_account": {
+                "data": {
+                    "account": "Account"
+                },
+                "data_description": {
+                    "account": "Usage and cost are read for this account only"
+                },
+                "description": "Your login has more than one open account. Choose the one to use.",
+                "title": "Choose an account"
             }
         }
     },

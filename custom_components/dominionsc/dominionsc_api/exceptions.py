@@ -3,6 +3,7 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from .dominionsc import AccountChoice
     from .utility import DominionSCTFAHandler
 
 
@@ -36,6 +37,19 @@ class CannotConnect(Exception):
 
 class InvalidAuth(Exception):
     """Error to indicate there is invalid auth."""
+
+
+class AccountSelectionRequired(InvalidAuth):
+    """Raised when a login holds several open accounts and one has to be chosen.
+
+    The message carries no customer details. The accounts to choose from are in
+    ``accounts``.
+    """
+
+    def __init__(self, message: str, accounts: list["AccountChoice"]) -> None:
+        """Initialize the exception."""
+        super().__init__(message)
+        self.accounts = accounts
 
 
 class MfaChallenge(Exception):

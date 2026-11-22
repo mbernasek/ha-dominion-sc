@@ -6,6 +6,7 @@ import logging
 import re
 import time
 import zoneinfo
+from collections.abc import Mapping
 from datetime import UTC, date, datetime
 from typing import Any
 
@@ -14,9 +15,41 @@ import xmltodict
 from aiohttp.client_exceptions import ClientError
 
 from .const import USER_AGENT
-from .exceptions import ApiException, CannotConnect, InvalidAuth, MfaChallenge
+from .exceptions import AccountSelectionRequired, ApiException, CannotConnect, InvalidAuth, MfaChallenge
 
 _LOGGER = logging.getLogger(__file__)
+
+
+@dataclasses.dataclass(frozen=True)
+class AccountChoice:
+    """An account a login can use, named by what the customer sees on the website."""
+
+    account_ending: str  # the "Account Ending" digits the website shows
+    service_address: str
+
+    @property
+    def label(self) -> str:
+        """Return a description to show the customer."""
+        if self.service_address and self.account_ending:
+            return f"{self.service_address} (account ending {self.account_ending})"
+        return self.service_address or f"Account ending {self.account_ending}"
+
+    def as_dict(self) -> dict[str, str]:
+        """Return a form that can be stored."""
+        return dataclasses.asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: Any) -> "AccountChoice | None":
+        """Rebuild a stored choice. Return None if there is none or it is unusable."""
+        if not isinstance(data, Mapping):
+            return None
+        account_ending = data.get("account_ending")
+        service_address = data.get("service_address")
+        if not isinstance(account_ending, str) or not isinstance(service_address, str):
+            return None
+        if not account_ending and not service_address:
+            return None
+        return cls(account_ending=account_ending, service_address=service_address)
 
 
 @dataclasses.dataclass
@@ -164,6 +197,7 @@ class DominionSC:
         username: str,
         password: str,
         login_data: dict[str, str] | None = None,  # {token: tfa_token}
+        account: AccountChoice | None = None,  # which account to use if several are open
     ) -> None:
         """Initialize."""
         # Note: Do not modify default headers since Home Assistant that uses this library needs to use
@@ -172,6 +206,7 @@ class DominionSC:
         self.username: str = username
         self.password: str = password
         self.login_data: dict[str, str] = login_data or {}
+        self.account: AccountChoice | None = account
         self.access_token: str | None = None
         self.user_id: str | None = None
         self.accounts: list[str] = []
@@ -202,21 +237,54 @@ class DominionSC:
         ]
         return f"{len(accounts)} account(s) on this login: " + "; ".join(parts)
 
-    def _choose_open_account(self, listing: dict[str, Any]) -> dict[str, Any]:
-        """Pick the one open account from a listing that holds several accounts.
+    @staticmethod
+    def _as_choice(account: dict[str, Any]) -> AccountChoice:
+        """Describe a listed account the way the customer sees it."""
+        return AccountChoice(
+            account_ending=str(account.get("accountNumberFormatted") or ""),
+            service_address=str(account.get("serviceAddress") or "").strip(),
+        )
 
-        :raises InvalidAuth: if the listing does not hold exactly one open account
+    @classmethod
+    def _find_choice(cls, accounts: list[dict[str, Any]], choice: AccountChoice) -> dict[str, Any] | None:
+        """Return the listed account a stored choice points at, if exactly one fits."""
+        matches = [account for account in accounts if cls._as_choice(account).account_ending == choice.account_ending]
+        if len(matches) > 1:
+            # The digits shown are only the end of the number, so two accounts can share them.
+            matches = [
+                account for account in matches if cls._as_choice(account).service_address == choice.service_address
+            ]
+        return matches[0] if len(matches) == 1 else None
+
+    def _choose_account(self, listing: dict[str, Any], preferred: AccountChoice | None = None) -> dict[str, Any]:
+        """Pick the account to use from a listing that holds several accounts.
+
+        The preferred account is used while it is open. Without one, or once it has
+        closed, a single open account is used and several open accounts need a choice.
+
+        :raises AccountSelectionRequired: if several accounts are open and none is chosen
+        :raises InvalidAuth: if no account is open
         """
         accounts = listing.get("accountListing") or []
         open_accounts = [
             account for account in accounts if not account.get("closedAccount") and not account.get("finalBill")
         ]
-        if len(open_accounts) != 1:
+        if preferred is not None:
+            chosen = self._find_choice(open_accounts, preferred)
+            if chosen is not None:
+                return chosen
+        if len(open_accounts) == 1:
+            return open_accounts[0]
+        if not open_accounts:
             raise InvalidAuth(
-                "User has multiple accounts and exactly one open account is needed "
-                f"(found {len(open_accounts)} open). {self._summarize_accounts(listing)}"
+                "User has multiple accounts and an open account is needed "
+                f"(found 0 open). {self._summarize_accounts(listing)}"
             )
-        return open_accounts[0]
+        raise AccountSelectionRequired(
+            "User has multiple accounts and one of the open accounts has to be chosen "
+            f"(found {len(open_accounts)} open). {self._summarize_accounts(listing)}",
+            [self._as_choice(account) for account in open_accounts],
+        )
 
     async def _async_select_account(
         self, url_handler: "DominionSCURLHandler", headers: dict[str, str], account: dict[str, Any]
@@ -254,15 +322,23 @@ class DominionSC:
 
         loaded = normalize(service_address_and_account_no)
         loaded_digits = re.sub(r"\D", "", str(service_address_and_account_no or ""))
-        matches = []
+        by_both = []
+        by_either = []
         for account in listing.get("accountListing") or []:
             address = normalize(account.get("serviceAddress"))
             digits = re.sub(r"\D", "", str(account.get("accountNumberFormatted") or ""))
             by_address = bool(address) and f" {address} " in f" {loaded} "
             by_number = len(digits) >= 4 and loaded_digits.endswith(digits[-4:])
+            if by_address and by_number:
+                by_both.append(account)
             if by_address or by_number:
-                matches.append(account)
-        return matches[0] if len(matches) == 1 else None
+                by_either.append(account)
+        # Two accounts can share an address or the end of a number, so an account that
+        # fits on both counts wins over one that fits on only one.
+        for matches in (by_both, by_either):
+            if len(matches) == 1:
+                return matches[0]
+        return None
 
     async def async_login(self) -> None:
         """Login to the utility website and authorize for access.
@@ -274,7 +350,7 @@ class DominionSC:
         """
         try:
             self.access_token, self.user_id, self.accounts = await self._async_login_internal(
-                self.session, self.username, self.password, self.login_data
+                self.session, self.username, self.password, self.login_data, self.account
             )
         except ClientError as err:
             raise CannotConnect(
@@ -285,13 +361,19 @@ class DominionSC:
             ) from err
 
     async def _async_login_internal(
-        self, session: aiohttp.ClientSession, username: str, password: str, login_data: dict[str, str] | None = None
+        self,
+        session: aiohttp.ClientSession,
+        username: str,
+        password: str,
+        login_data: dict[str, str] | None = None,
+        account: AccountChoice | None = None,
     ) -> tuple[str, str, list | None]:
         """Login to the utility website.
 
         Return the access token or None
 
         :raises InvalidAuth: if login information is incorrect
+        :raises AccountSelectionRequired: if several accounts are open and none is chosen
         :raises MfaChallenge: if interactive MFA is required
         :raises CannotConnect: if there is a retryable connection exception
         :raises ApiException: if API response cannot be parsed (API structure may have changed)
@@ -375,11 +457,11 @@ class DominionSC:
             raise ApiException("Unable to decode GetAccountListing singleAccount.", url=url4, response_text=r4) from err
 
         # A login can hold more than one account, for example an open account plus a
-        # closed one after service moved to a new address. One account has to be
-        # picked before the account summary can be loaded.
+        # closed one after service moved to a new address, or two addresses in use.
+        # One account has to be picked before the account summary can be loaded.
         chosen_account: dict[str, Any] | None = None
         if single_account is not True:
-            chosen_account = self._choose_open_account(listing)
+            chosen_account = self._choose_account(listing, account)
             await self._async_select_account(url_handler, headers1, chosen_account)
 
         tt = str(int(time.time() * 1000))

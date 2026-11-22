@@ -5,15 +5,24 @@ Apache-2.0), changed to support logins that hold more than one account.
 """
 
 from .dominionsc import (
+    AccountChoice,
     DominionSC,
     DominionSCTFAHandler,
     Forecast,
     UsageRead,
 )
-from .exceptions import ApiException, CannotConnect, InvalidAuth, MfaChallenge
+from .exceptions import (
+    AccountSelectionRequired,
+    ApiException,
+    CannotConnect,
+    InvalidAuth,
+    MfaChallenge,
+)
 from .helpers import create_cookie_jar
 
 __all__ = [
+    "AccountChoice",
+    "AccountSelectionRequired",
     "ApiException",
     "CannotConnect",
     "DominionSC",

@@ -7,6 +7,8 @@ DOMAIN = "dominionsc"
 COMMON_NAME = "Dominion Energy SC"
 
 CONF_LOGIN_DATA = "login_data"
+# Which account to use when the login holds several open accounts
+CONF_ACCOUNT = "account"
 
 # Number of days to backfill on first setup or statistics upgrade
 # BACKFILL_DAYS = 30
