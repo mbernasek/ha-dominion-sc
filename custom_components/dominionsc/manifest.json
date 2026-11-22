@@ -8,8 +8,8 @@
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://www.github.com/sctigercat1/ha-dominion-sc/issues",
-  "loggers": ["dominionsc"],
+  "loggers": ["custom_components.dominionsc"],
   "quality_scale": "bronze",
-  "requirements": ["dominion-sc-power==0.0.1"],
-  "version": "0.0.7"
+  "requirements": ["xmltodict>=1.0.2"],
+  "version": "0.0.7.1"
 }
