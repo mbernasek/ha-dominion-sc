@@ -49,6 +49,7 @@ A Home Assistant custom integration for Dominion Energy South Carolina customers
    - **Password**: Your Dominion Energy SC online account password
 5. Complete two-factor authentication when prompted
    - **Recommended**: Use SMS-based verification for better reliability
+   - If your login has more than one open account, choose the one to use when asked
 6. Select your historical data backfill preferences:
    - **Backfill extra consumption data**: Load up to 365 days of historical electric and gas consumption data (default: off, backfills only the current billing cycle)
    - **Backfill extra cost data**: Calculate estimated electric cost for the extended range, limited to the effective date of the chosen rate schedule (default: off; requires consumption backfill to be enabled)
@@ -163,7 +164,7 @@ If you receive authentication errors:
 ## Known Limitations
 
 - **Data Delay**: Energy usage data is reported by Dominion Energy SC with a 24-48 hour delay. Real-time monitoring is not available. The API is polled every 12 hours for new energy data
-- **Single Service Address**: Currently supports only one service address per Dominion Energy SC account. Support for multiple service addresses may be included in a future release
+- **One Account per Login**: Only one account (service address) per Dominion Energy SC login is used. A single open account is used automatically, even when closed accounts are listed with it. If several accounts are open, setup asks which one to use
 - **No Time-of-Use Data**: Time-of-use pricing breakdowns or any other rate not discussed above are not available
 - **No Solar/Grid Export**: Energy provided back to the grid from sources like solar panels is not yet supported
 - **Cost Estimates**: Calculations are estimates based on selected rate schedule; actual bills may vary (in particular, optional historic cost calculation will likely be less accurate due to need of estimating prior billing cycles)

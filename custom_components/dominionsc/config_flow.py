@@ -22,6 +22,7 @@ from homeassistant.helpers.typing import VolDictType
 
 from .const import (
     COMMON_NAME,
+    CONF_ACCOUNT,
     CONF_COST_MODE,
     CONF_EXTENDED_BACKFILL,
     CONF_EXTENDED_COST_BACKFILL,
@@ -34,6 +35,8 @@ from .const import (
     DOMAIN,
 )
 from .dominionsc_api import (
+    AccountChoice,
+    AccountSelectionRequired,
     ApiException,
     CannotConnect,
     DominionSC,
@@ -64,6 +67,7 @@ async def _validate_login(
         data[CONF_USERNAME],
         data[CONF_PASSWORD],
         data.get(CONF_LOGIN_DATA),
+        AccountChoice.from_dict(data.get(CONF_ACCOUNT)),
     )
     _LOGGER.debug("API: async_login")
     await api.async_login()
@@ -78,6 +82,7 @@ class DominionSCConfigFlow(ConfigFlow, domain=DOMAIN):
         """Initialize a new DominionSCConfigFlow."""
         self._data: dict[str, Any] = {}
         self._options: dict[str, Any] = {}
+        self._account_choices: list[AccountChoice] = []
         self.tfa_handler: DominionSCTFAHandler | None = None
 
     @staticmethod
@@ -107,6 +112,9 @@ class DominionSCConfigFlow(ConfigFlow, domain=DOMAIN):
                 self.tfa_handler = exc.handler
                 _LOGGER.debug("API: async_step_tfa_options")
                 return await self.async_step_tfa_options()
+            except AccountSelectionRequired as exc:
+                self._account_choices = exc.accounts
+                return await self.async_step_select_account()
             except InvalidAuth:
                 errors["base"] = "invalid_auth"
             except CannotConnect:
@@ -196,17 +204,72 @@ class DominionSCConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "unknown"
             else:
                 self._data[CONF_LOGIN_DATA] = login_data
-                if self.source == SOURCE_REAUTH:
-                    return self.async_update_reload_and_abort(
-                        self._get_reauth_entry(), data=self._data
-                    )
-                return await self.async_step_backfill_options()
+                return await self._async_check_accounts()
 
         return self.async_show_form(
             step_id="tfa_code",
             data_schema=self.add_suggested_values_to_schema(
                 vol.Schema({vol.Required(CONF_TFA_CODE): str}), user_input
             ),
+            errors=errors,
+        )
+
+    async def _async_check_accounts(self) -> ConfigFlowResult:
+        """Find out whether an account has to be chosen, now that the login works."""
+        try:
+            await _validate_login(self.hass, self._data)
+        except AccountSelectionRequired as exc:
+            self._account_choices = exc.accounts
+            return await self.async_step_select_account()
+        except (ApiException, CannotConnect, InvalidAuth, MfaChallenge) as err:
+            # The security code is used up, so the flow carries on as it did before
+            # this check existed. A real problem shows up when the entry is set up.
+            _LOGGER.debug(
+                "Could not check for several accounts: %s", type(err).__name__
+            )
+        return await self._async_finish_login()
+
+    async def _async_finish_login(self) -> ConfigFlowResult:
+        """Continue once the login and the account are settled."""
+        if self.source == SOURCE_REAUTH:
+            return self.async_update_reload_and_abort(
+                self._get_reauth_entry(), data=self._data
+            )
+        return await self.async_step_backfill_options()
+
+    async def async_step_select_account(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Ask which account to use when the login holds several open accounts."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            choice = self._account_choices[int(user_input[CONF_ACCOUNT])]
+            data = {**self._data, CONF_ACCOUNT: choice.as_dict()}
+            try:
+                await _validate_login(self.hass, data)
+            except AccountSelectionRequired as exc:
+                # The chosen account closed or left the login in the meantime.
+                self._account_choices = exc.accounts
+                errors["base"] = "account_unavailable"
+            except (InvalidAuth, MfaChallenge):
+                errors["base"] = "invalid_auth"
+            except CannotConnect:
+                errors["base"] = "cannot_connect"
+            except ApiException as err:
+                _LOGGER.error("API structure error during account selection: %s", err)
+                errors["base"] = "unknown"
+            else:
+                self._data = data
+                return await self._async_finish_login()
+
+        choices = {
+            str(index): choice.label
+            for index, choice in enumerate(self._account_choices)
+        }
+        return self.async_show_form(
+            step_id="select_account",
+            data_schema=vol.Schema({vol.Required(CONF_ACCOUNT): vol.In(choices)}),
             errors=errors,
         )
 
@@ -322,6 +385,9 @@ class DominionSCConfigFlow(ConfigFlow, domain=DOMAIN):
             except MfaChallenge as exc:
                 self.tfa_handler = exc.handler
                 return await self.async_step_tfa_options()
+            except AccountSelectionRequired as exc:
+                self._account_choices = exc.accounts
+                return await self.async_step_select_account()
             except InvalidAuth:
                 errors["base"] = "invalid_auth"
             except CannotConnect:

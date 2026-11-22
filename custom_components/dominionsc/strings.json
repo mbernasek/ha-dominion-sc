@@ -9,7 +9,8 @@
       "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
       "invalid_tfa_code": "The security code is incorrect. Please try again.",
       "unknown": "[%key:common::config_flow::error::unknown%]",
-      "invalid_backfill_selection": "It is required to backfill consumption data if you want to backfill cost data. Please try again."
+      "invalid_backfill_selection": "It is required to backfill consumption data if you want to backfill cost data. Please try again.",
+      "account_unavailable": "That account is no longer available. Please choose again."
     },
     "step": {
       "user": {
@@ -85,6 +86,16 @@
         "data_description": {
           "fixed_rate": "Single rate applied to all kWh consumed"
         }
+      },
+      "select_account": {
+        "data": {
+          "account": "Account"
+        },
+        "data_description": {
+          "account": "Usage and cost are read for this account only"
+        },
+        "description": "Your login has more than one open account. Choose the one to use.",
+        "title": "Choose an account"
       }
     }
   },

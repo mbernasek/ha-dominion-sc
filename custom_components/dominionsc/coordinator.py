@@ -29,6 +29,7 @@ from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_conversion import EnergyConverter, VolumeConverter
 
 from .const import (
+    CONF_ACCOUNT,
     CONF_COST_MODE,
     CONF_EXTENDED_BACKFILL,
     CONF_EXTENDED_COST_BACKFILL,
@@ -44,6 +45,7 @@ from .const import (
     clean_service_addr,
 )
 from .dominionsc_api import (
+    AccountChoice,
     DominionSC,
     Forecast,
     create_cookie_jar,
@@ -288,6 +290,7 @@ class DominionSCCoordinator(DataUpdateCoordinator[DominionSCData]):
             config_entry.data[CONF_USERNAME],
             config_entry.data[CONF_PASSWORD],
             config_entry.data.get(CONF_LOGIN_DATA),
+            AccountChoice.from_dict(config_entry.data.get(CONF_ACCOUNT)),
         )
         # Track if backfill has been initiated to prevent race condition
         # where recorder hasn't committed stats yet and backfill runs again
