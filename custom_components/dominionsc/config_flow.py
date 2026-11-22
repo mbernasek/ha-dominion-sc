@@ -20,16 +20,6 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.typing import VolDictType
 
-from dominionsc import (
-    ApiException,
-    CannotConnect,
-    DominionSC,
-    DominionSCTFAHandler,
-    InvalidAuth,
-    MfaChallenge,
-    create_cookie_jar,
-)
-
 from .const import (
     COMMON_NAME,
     CONF_COST_MODE,
@@ -42,6 +32,15 @@ from .const import (
     COST_MODE_RATE_8,
     DEFAULT_FIXED_RATE,
     DOMAIN,
+)
+from .dominionsc_api import (
+    ApiException,
+    CannotConnect,
+    DominionSC,
+    DominionSCTFAHandler,
+    InvalidAuth,
+    MfaChallenge,
+    create_cookie_jar,
 )
 from .rates import TIERED_RATE_REGISTRY, build_cost_mode_choices
 

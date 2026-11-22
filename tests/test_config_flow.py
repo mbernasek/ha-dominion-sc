@@ -2,7 +2,6 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from dominionsc.exceptions import ApiException, CannotConnect, InvalidAuth, MfaChallenge
 from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
@@ -30,6 +29,12 @@ from custom_components.dominionsc.const import (
     COST_MODE_RATE_6,
     COST_MODE_RATE_8,
     DOMAIN,
+)
+from custom_components.dominionsc.dominionsc_api.exceptions import (
+    ApiException,
+    CannotConnect,
+    InvalidAuth,
+    MfaChallenge,
 )
 
 # ---------------------------------------------------------------------------

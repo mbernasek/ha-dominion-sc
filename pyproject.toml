@@ -11,7 +11,7 @@ authors = [
 keywords = ["home-assistant", "energy", "custom-integration"]
 dependencies = [
     "homeassistant>=2025.6.3",
-    "dominion-sc-power==0.0.1",
+    "xmltodict>=1.0.2",
 ]
 
 [project.optional-dependencies]
@@ -37,6 +37,8 @@ include = ["custom_components"]
 [tool.ruff]
 target-version = "py313"
 line-length = 88
+# Vendored copy of dominion-sc-power, kept in its upstream style.
+extend-exclude = ["custom_components/dominionsc/dominionsc_api"]
 
 [tool.ruff.lint]
 select = [

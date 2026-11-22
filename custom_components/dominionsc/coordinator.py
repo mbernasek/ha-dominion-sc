@@ -28,13 +28,6 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_conversion import EnergyConverter, VolumeConverter
 
-from dominionsc import (
-    DominionSC,
-    Forecast,
-    create_cookie_jar,
-)
-from dominionsc.exceptions import ApiException, CannotConnect, InvalidAuth, MfaChallenge
-
 from .const import (
     CONF_COST_MODE,
     CONF_EXTENDED_BACKFILL,
@@ -49,6 +42,17 @@ from .const import (
     EXTENDED_BACKFILL_DAYS,
     LOOKBACK_DAYS,
     clean_service_addr,
+)
+from .dominionsc_api import (
+    DominionSC,
+    Forecast,
+    create_cookie_jar,
+)
+from .dominionsc_api.exceptions import (
+    ApiException,
+    CannotConnect,
+    InvalidAuth,
+    MfaChallenge,
 )
 from .rates import TIERED_RATE_REGISTRY, RateSchedule, calculate_sc_rate_interval_cost
 
